@@ -160,7 +160,7 @@ class ContactMatrix:
                 if len(seqrec) < min_len:
                     continue
                 self.fasta_info[seqrec.id] = {'sites': site_counter.count_sites(seqrec.seq),
-                                         'length': len(seqrec), 'GC': GC(seqrec.seq)}
+                                              'length': len(seqrec), 'GC': GC(seqrec.seq)}
 
         logger.debug('There are {} contigs in reference fasta'.format(fasta_count))
         ########deal with the coverage file##############
@@ -237,9 +237,8 @@ class ContactMatrix:
             logger.debug('Accepted {} contigs covering {} bp'.format(self.total_seq, self.total_len))
             logger.info('Counting reads in bam file...')
 
- 
             self.total_reads = bam.count(until_eof=True)
-            logger.debug('BAM file contains {0} alignments'.format(self.total_reads))
+            logger.debug('BAM file contains {} alignments'.format(self.total_reads))
 
             logger.info('Handling the alignments...')
             self._bin_map(bam)
@@ -285,8 +284,9 @@ class ContactMatrix:
     #tax_info is a dict: key is contig name, value is label by TAXAssign#
         TAXAassign_file = self.tax_file
         taxaHeader = pd.read_csv(TAXAassign_file, sep=',', nrows=1)
-        taxaassignMat = pd.read_csv(TAXAassign_file, sep=',', header=None, usecols=range(0, taxaHeader.shape[1]))
-        #deleta all unspecific taxaassign at species level#
+        taxaassignMat = pd.read_csv(TAXAassign_file, sep=',', header=None, usecols=range(0, taxaHeader.shape[1]), dtype=str)
+        #delete all unspecific taxaassign at species level
+        
         ex_list = list(taxaassignMat[6])
         ex_list_new = []
         for i in ex_list:
@@ -307,11 +307,11 @@ class ContactMatrix:
     def _generate_coalign(self):
     ##namelist is original contig names
     ##taxassignmat is the original information
-        _contig_name = list(self.seq_info[i].name for i in range(len(self.seq_info)))
+        _contig_name = set(self.seq_info[i].name for i in range(len(self.seq_info)))
         _localid = list(self.seq_info[i].localid for i in range(len(self.seq_info)))
         ref = list(zip(_localid , _contig_name))
         ref = np.array(ref)
-    
+        # print(1)
         namelist_filter = []
         taxaassignMat_filter_coalign = []
 
@@ -319,13 +319,13 @@ class ContactMatrix:
             if name in _contig_name:
                 namelist_filter.append(name)
                 taxaassignMat_filter_coalign.append(tax)
-
+                
         namelist_filter = np.array(namelist_filter)
         taxaassignMat_filter_coalign = np.array(taxaassignMat_filter_coalign)
 
         taxa_filter_label = np.unique(taxaassignMat_filter_coalign)
         genomeNum_filter = taxa_filter_label.shape[0]
-        contigs_cluster_map = [[] for i in range(genomeNum_filter)]
+        contigs_cluster_map = [[] for _ in range(genomeNum_filter)]
         for i in range(genomeNum_filter):
             for j in range(len(taxaassignMat_filter_coalign)):  
                 if taxaassignMat_filter_coalign[j] == taxa_filter_label[i]:

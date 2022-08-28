@@ -147,7 +147,7 @@ def gen_bins(fastafile,resultfile,outputdir):
             for line in f:
                 if line.startswith(">"):
                     if " " in line:
-                        seq,others=line.split(' ', 1)
+                        seq, others=line.split(' ', 1)
                         sequences[seq] = ""
                     else :
                         seq=line.rstrip("\n")
@@ -167,17 +167,8 @@ def gen_bins(fastafile,resultfile,outputdir):
     if not os.path.exists(outputdir):
         os.makedirs(outputdir)
     
-    bin_name=0
-    for _,cluster in dic.items():
-        if bin_name < 10:
-            bin = 'BIN'+ '000' + str(bin_name) + '.fa'
-        elif bin_name >= 10 and bin_name < 100:
-            bin = 'BIN'+ '00' + str(bin_name) + '.fa'
-        elif bin_name >= 100 and bin_name < 1000:
-            bin = 'BIN'+ '0' + str(bin_name) + '.fa'
-        else:
-            bin = 'BIN'+str(bin_name) + '.fa'
-        binfile=os.path.join(outputdir,"{}".format(bin))
+    for bin_name ,cluster in dic.items():
+        binfile=os.path.join(outputdir,"{}.fa".format(bin_name))
         with open(binfile,"w") as f:
             for contig_name in cluster:
                 contig_name=">"+contig_name
@@ -185,10 +176,7 @@ def gen_bins(fastafile,resultfile,outputdir):
                     sequence=sequences[contig_name]
                 except:
                     continue
-                f.write(contig_name+"\n")
-                f.write(sequence+"\n")
-        bin_name+=1
-
+                f.write(contig_name + "\n" + sequence + "\n")
 
 def gen_sub_bins(fastafile,resultfile,outputdir):
     # read fasta file

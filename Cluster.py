@@ -86,7 +86,7 @@ class ClusterBin:
 
             c1 = self.cov[x]
             c2 = self.cov[y]
-            c = (log(c1*c2)-self.norm_result[9])/self.norm_result[10]
+            c = (log(c1*c2 + 1e-6)-self.norm_result[9])/self.norm_result[10] # see exact line in Cluster_LC method
             
             d_norm = d/exp(coeff[0] + coeff[1]  * s  + coeff[2] * l + coeff[3]* c)   
     
@@ -212,11 +212,12 @@ class ClusterBin_LC:
 
             l1 =  self.len[x]
             l2 =  self.len[y]
-            l = (log(l1*l2)-self.norm_result[4])/self.norm_result[5]
+            l = (log(l1*l2) - self.norm_result[4])/self.norm_result[5]
 
             c1 = self.cov[x]
             c2 = self.cov[y]
-            c = (log(c1*c2)-self.norm_result[6])/self.norm_result[7]
+            c = (log(c1*c2 + 1e-6)-self.norm_result[6])/self.norm_result[7] # fails when contig has 0 coverage => add infinitesmall number
+            
             
             d_norm = d/exp(coeff[0] + coeff[1] * l + coeff[2]* c)   
     

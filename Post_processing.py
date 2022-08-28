@@ -33,6 +33,8 @@ class Postprocess:
 
         for counter, value in enumerate(list(cl.name)):
             ref[value] = counter
+            
+        logger.info(cm)
 
         for k in range(cm.shape[0]):
             fi = str(cm[k]) + '.fa'

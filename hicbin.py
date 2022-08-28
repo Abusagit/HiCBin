@@ -1,5 +1,5 @@
 #########The structure of the main script is modified from bin3C########
-from contact_matrix import ContactMatrix, ContactMatrix_LC
+from contact_matrix import ContactMatrix, ContactMatrix_LC, SeqInfo
 from Cluster import ClusterBin, ClusterBin_LC
 from Post_processing import Postprocess
 from exceptions import ApplicationException
@@ -10,11 +10,29 @@ import argparse
 import os
 import time
 import warnings
+import pickle
+import numpy as np
+import scipy.sparse as sparse
+from typing import Union
+from pathlib import Path
 
 ##Ignore the warning information of package deprecation##
 warnings.filterwarnings("ignore")
 
 __version__ = '1.0.0, released at 01/2021'
+
+def save_sequence_names(sequence_info: SeqInfo, filename) -> None:
+    logger.info(f"Saving sequence info [(name, length)] at {filename}")
+    
+    seq_info = [(x.name, x.length) for x in sequence_info]
+    
+    with open(filename, "wb") as handler:
+        pickle.dump(seq_info, handler)
+        
+def save_contact_map(contact_map: sparse.coo.coo_matrix, filename, raw=False) -> None:
+    logger.info(f"Saving{' raw ' if raw else ' '}contact map at {filename}")
+    
+    sparse.save_npz(filename, contact_map)
 
 if __name__ == '__main__':
     
@@ -49,33 +67,34 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='HiCBin: a metagenome Hi-C normalization and binning software')
 
     subparsers = parser.add_subparsers(title='commands', dest='command', description='Valid commands',
-                                       help='choose an analysis stage for further options')
+                                    help='choose an analysis stage for further options')
 
     cmd_pl = subparsers.add_parser('pipeline', parents=[global_parser],
-                                      description='Normalize contacts and do the binning.')
+                                    description='Normalize contacts and do the binning.')
 
     cmd_pp = subparsers.add_parser('recluster', parents=[global_parser],
                                         description='post-processing step on partially containminated bins.')
 
     cmd_test = subparsers.add_parser('test', parents=[global_parser],
-                                        description='pipeline testing.')
+                                        description='pipeline testing.',
+                                        )
 
     '''
     pipeline subparser input
     '''
     cmd_pl.add_argument('--min-binsize', type=int,
-                               help='Minimum bin size used in output [150000]')
+                        help='Minimum bin size used in output [150000]')
     cmd_pl.add_argument('--min-len', type=int,
-                               help='Minimum acceptable reference length [1000]')
+                            help='Minimum acceptable reference length [1000]')
     cmd_pl.add_argument('--min-signal', type=int, help='Minimum acceptable signal [2]')
     cmd_pl.add_argument('--min-mapq', type=int,
-                           help='Minimum acceptable mapping quality [30]')
+                        help='Minimum acceptable mapping quality [30]')
     cmd_pl.add_argument('--min-match', type=int,
-                           help='Accepted alignments must being N matches [30]')
+                        help='Accepted alignments must being N matches [30]')
     cmd_pl.add_argument('-e', '--enzyme', metavar='NEB_NAME', action='append',
-                           help='Case-sensitive enzyme name. Use multiple times for multiple enzymes')
+                        help='Case-sensitive enzyme name. Use multiple times for multiple enzymes')
     cmd_pl.add_argument('--thres', type=float,
-                           help='acceptable fraction of incorrectly identified valid contacts [0.05]')
+                        help='acceptable fraction of incorrectly identified valid contacts [0.05]')
     cmd_pl.add_argument('FASTA', help='Reference fasta sequence')
     cmd_pl.add_argument('BAM', help='Input bam file in query order')
     cmd_pl.add_argument('TAX', help='Contig labels from TAXAssign')
@@ -113,7 +132,6 @@ if __name__ == '__main__':
     # root log listens to everything
     root = logging.getLogger('')
     root.setLevel(logging.DEBUG)
-
     # log message format
     formatter = logging.Formatter(fmt='%(levelname)-8s | %(asctime)s | %(name)7s | %(message)s')
 
@@ -141,6 +159,10 @@ if __name__ == '__main__':
     logger.debug(sys.version.replace('\n', ' '))
     logger.debug('Command line: {}'.format(' '.join(sys.argv)))
 
+    NORMALISED_CM_FILENAME = Path(args.OUTDIR, "contact_map_normalized.npz")
+    RAW_CM_FILENAME = Path(args.OUTDIR, "contact_map_raw.npz")
+    SEQ_INFO_FILENAME = Path(args.OUTDIR, "sequences_info.pkl")
+    
     try:
         start_time = time.time()
         if args.command == 'pipeline':
@@ -156,7 +178,8 @@ if __name__ == '__main__':
                                 min_len=ifelse(args.min_len, runtime_defaults['min_len']),
                                 min_match=ifelse(args.min_match, runtime_defaults['min_match']),
                                 min_signal=ifelse(args.min_signal, runtime_defaults['min_signal']))
-
+                save_contact_map(cm.seq_map, filename=RAW_CM_FILENAME)
+                
                 if cm.is_empty():
                     logger.info('Stopping as the contact matrix is empty')
                     sys.exit(1)
@@ -194,6 +217,7 @@ if __name__ == '__main__':
                                 min_len=ifelse(args.min_len, runtime_defaults['min_len']),
                                 min_match=ifelse(args.min_match, runtime_defaults['min_match']),
                                 min_signal=ifelse(args.min_signal, runtime_defaults['min_signal']))
+                save_contact_map(cm.seq_map, filename=RAW_CM_FILENAME, raw=True)
 
                 if cm.is_empty():
                     logger.info('Stopping as the contact matrix is empty')
@@ -205,14 +229,16 @@ if __name__ == '__main__':
             
                 from rpy2 import robjects
                 r = robjects.r
-                r.source('HiCzin.R')
+                r.source(os.path.join(os.path.abspath(os.path.dirname(os.path.realpath(__file__))), 'HiCzin.R'))
                 contig_file = os.path.join(args.OUTDIR ,'contig_info.csv')
                 valid_file = os.path.join(args.OUTDIR ,'valid_contact.csv')
                 thres = ifelse(args.thres, runtime_defaults['thres'])
                 norm_result = r.HiCzin(contig_file , valid_file , thres)
 
                 logger.info('Normalization finished')
-            
+                # breakpoint()
+                
+                
                 cl = ClusterBin_LC(args.OUTDIR,
                                 cm.seq_info,
                                 cm.seq_map,
@@ -220,10 +246,12 @@ if __name__ == '__main__':
                                 ifelse(args.min_signal, runtime_defaults['min_signal']),
                                 ifelse(args.min_binsize, runtime_defaults['min_binsize']))
 
+            save_sequence_names(cm.seq_info, filename=SEQ_INFO_FILENAME)
+            save_contact_map(cm.seq_map, filename=NORMALISED_CM_FILENAME)
+            
             logger.info('Writing bins...')
-            gen_bins(args.FASTA , os.path.join(args.OUTDIR ,'cluster.txt') , os.path.join(args.OUTDIR ,'BIN'))
+            gen_bins(args.FASTA , os.path.join(args.OUTDIR ,'cluster.txt') , os.path.join(args.OUTDIR ,'bins'))
             logger.info('Clustering fininshed')
-
             end_time = time.time()
             logger.info('HiCBin consumes {} seconds in total'.format(str(end_time-start_time)))
 
@@ -236,7 +264,7 @@ if __name__ == '__main__':
             cl = load_object(os.path.join(args.OUTDIR , 'HiCzin_normalized_contact.gz'))
             post = Postprocess(args.OUTDIR , args.CHECKM , cl)
             logger.info('Writing sub bins...')
-            gen_sub_bins(args.FASTA , os.path.join(args.OUTDIR ,'cluster_sub.txt') , os.path.join(args.OUTDIR ,'SUB_BIN'))
+            gen_sub_bins(args.FASTA , os.path.join(args.OUTDIR ,'cluster_sub.txt') , os.path.join(args.OUTDIR ,'sub_bins'))
 
 
         if args.command == 'test':
@@ -272,6 +300,12 @@ if __name__ == '__main__':
             thres = runtime_defaults['thres']
             norm_result = r.HiCzin(contig_file , valid_file , thres)
             logger.info('Normalization section works!')
+            
+            # breakpoint()
+            save_sequence_names(cm.seq_info, filename=SEQ_INFO_FILENAME)
+            save_contact_map(cm.seq_map, filename=RAW_CM_FILENAME)
+
+
 
             logger.info('Begin to test the clustering section...')
             cl = ClusterBin(args.OUTDIR,
@@ -280,9 +314,12 @@ if __name__ == '__main__':
                             norm_result,
                             0,
                             0)
+            save_contact_map(cm.seq_map, filename=NORMALISED_CM_FILENAME)
+            # breakpoint()
             logger.info('Clustering section works!')
             logger.info('Writing bins...')
             gen_bins(FASTA , os.path.join(args.OUTDIR ,'cluster.txt') , os.path.join(args.OUTDIR ,'BIN'))
+            
             
             logger.info('Begin to test the post-processing section...')
             CHECKM = 'test/checkm_test.csv'
@@ -292,9 +329,6 @@ if __name__ == '__main__':
             logger.info('Post-processing section works!')
 
             logger.info('Testing finished!')
-
-
-
 
     except ApplicationException:
         logger.error('ApplicationException Error')
