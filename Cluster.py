@@ -141,7 +141,7 @@ class ClusterBin:
                 rang.append(ci)
                 numnode = numnode+len(part[ci])
                 for id in part[ci]:
-                    self.dist_cluster[self.name[id]] = 'group'+str(ci)
+                    self.dist_cluster[self.name[id]] = 'group' + str(ci)
 
         logger.debug('The optimal resolution is {}'.format(res_optimal))
         logger.debug('There are {} contigs in {} bins'.format(numnode , len(rang)))

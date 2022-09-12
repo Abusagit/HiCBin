@@ -21,10 +21,10 @@ warnings.filterwarnings("ignore")
 
 __version__ = '1.0.0, released at 01/2021'
 
-def save_sequence_names(sequence_info: SeqInfo, filename) -> None:
-    logger.info(f"Saving sequence info [(name, length)] at {filename}")
+def save_sequence_names_coverages(sequence_info: SeqInfo, filename) -> None:
+    logger.info(f"Saving sequence info [(name, length, coverage)] at {filename}")
     
-    seq_info = [(x.name, x.length) for x in sequence_info]
+    seq_info = [(x.name, x.length, x.cov) for x in sequence_info]
     
     with open(filename, "wb") as handler:
         pickle.dump(seq_info, handler)
@@ -191,7 +191,7 @@ if __name__ == '__main__':
             
                 from rpy2 import robjects
                 r = robjects.r
-                r.source('HiCzin.R')
+                r.source(os.path.join(os.path.abspath(os.path.dirname(os.path.realpath(__file__))), 'HiCzin.R'))
                 contig_file = os.path.join(args.OUTDIR ,'contig_info.csv')
                 valid_file = os.path.join(args.OUTDIR ,'valid_contact.csv')
                 thres = ifelse(args.thres, runtime_defaults['thres'])
@@ -246,7 +246,7 @@ if __name__ == '__main__':
                                 ifelse(args.min_signal, runtime_defaults['min_signal']),
                                 ifelse(args.min_binsize, runtime_defaults['min_binsize']))
 
-            save_sequence_names(cm.seq_info, filename=SEQ_INFO_FILENAME)
+            save_sequence_names_coverages(cm.seq_info, filename=SEQ_INFO_FILENAME)
             save_contact_map(cm.seq_map, filename=NORMALISED_CM_FILENAME)
             
             logger.info('Writing bins...')
@@ -302,7 +302,7 @@ if __name__ == '__main__':
             logger.info('Normalization section works!')
             
             # breakpoint()
-            save_sequence_names(cm.seq_info, filename=SEQ_INFO_FILENAME)
+            save_sequence_names_coverages(cm.seq_info, filename=SEQ_INFO_FILENAME)
             save_contact_map(cm.seq_map, filename=RAW_CM_FILENAME)
 
 
